@@ -6,6 +6,7 @@
 import { create } from 'ember-cli-page-object';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
+import { setupMirage } from 'ember-cli-mirage/test-support';
 import { v4 as uuidv4 } from 'uuid';
 
 import authPage from 'vault/tests/pages/auth';
@@ -120,6 +121,7 @@ const setupOidc = async function (uid) {
 
 module('Acceptance | oidc provider', function (hooks) {
   setupApplicationTest(hooks);
+  setupMirage(hooks);
 
   hooks.beforeEach(async function () {
     this.uid = uuidv4();
@@ -170,7 +172,53 @@ module('Acceptance | oidc provider', function (hooks) {
       .hasTextContaining(`click here to go back to app`, 'Shows link back to app');
     const link = document.querySelector('[data-test-oidc-redirect]').getAttribute('href');
     assert.ok(link.includes('/callback?code='), 'Redirects to correct url');
+    //* clean up test state
+    await clearRecord(this.store, 'oidc/client', WEB_APP_NAME);
+    await clearRecord(this.store, 'oidc/provider', PROVIDER_NAME);
+  });
 
+  test('OIDC Provider returns errors correctly', async function (assert) {
+    const { providerName, callback, clientId, authMethodPath } = this.oidcSetupInformation;
+
+    await visit('/vault/access/oidc');
+    assert
+      .dom(`[data-test-oidc-client-linked-block='${WEB_APP_NAME}']`)
+      .exists({ count: 1 }, 'shows webapp in oidc provider list');
+    await logout.visit();
+    await settled();
+    const url = getAuthzUrl(providerName, callback, clientId);
+    await visit(url);
+
+    assert.ok(currentURL().startsWith('/vault/auth'), 'redirects to auth when no token');
+
+    await waitFor('[data-test-auth-form]', { timeout: 5000 });
+    assert.ok(
+      currentURL().includes(`redirect_to=${encodeURIComponent(url)}`),
+      `encodes url for the query param in: ${currentURL()}`
+    );
+    assert.dom('[data-test-auth-logo]').exists('Vault logo exists on auth page');
+    assert
+      .dom('[data-test-auth-helptext]')
+      .hasText(
+        'Once you log in, you will be redirected back to your application. If you require login credentials, contact your administrator.',
+        'Has updated text for client authorization flow'
+      );
+    this.server.get(`${window.origin}/v1/identity/oidc/provider/${providerName}/authorize`, () => {
+      // return new Response(403, {}, { errors: ['1 error occurred:\n\t* permission denied\n\n'] });
+      return { status: new Response(403, {}, { errors: ['permission denied'] }) };
+    });
+    await authFormComponent.selectMethod(authMethodPath);
+    await authFormComponent.username(OIDC_USER);
+    await authFormComponent.password(USER_PASSWORD);
+    await authFormComponent.login();
+    await settled();
+    assert.strictEqual(currentURL(), url, 'URL is as expected after login');
+    assert
+      .dom('[data-test-oidc-redirect]')
+      .hasTextContaining(`click here to go back to app`, 'Shows link back to app');
+    const link = document.querySelector('[data-test-oidc-redirect]').getAttribute('href');
+    // await this.pauseTest();
+    assert.ok(link.includes('/callback?code='), 'Redirects to correct url');
     //* clean up test state
     await clearRecord(this.store, 'oidc/client', WEB_APP_NAME);
     await clearRecord(this.store, 'oidc/provider', PROVIDER_NAME);

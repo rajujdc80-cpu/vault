@@ -190,11 +190,11 @@ export default Service.extend({
       defaults.headers['X-Vault-Namespace'] = namespace;
     }
     const opts = Object.assign(defaults, options);
-
     return fetch(url, {
       method: opts.method || 'GET',
       headers: opts.headers || {},
     }).then((response) => {
+      debugger;
       if (response.status === 204) {
         return resolve();
       } else if (response.status >= 200 && response.status < 300) {

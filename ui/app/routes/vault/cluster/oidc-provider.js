@@ -134,6 +134,7 @@ export default class VaultClusterOidcProviderRoute extends Route {
       throw new Error('Missing required query params');
     }
     try {
+      debugger;
       const response = await this.auth.ajax(endpoint, 'GET', { namespace: routeParams.namespace });
       if ('consent' === qp.prompt?.toLowerCase()) {
         return {
@@ -146,6 +147,7 @@ export default class VaultClusterOidcProviderRoute extends Route {
       }
       return this._handleSuccess(response, decodedRedirect, qp.state);
     } catch (errorRes) {
+      debugger;
       const resp = await errorRes.json();
       const code = resp.error;
       if (code === 'max_age_violation' || resp?.errors?.includes('permission denied')) {
