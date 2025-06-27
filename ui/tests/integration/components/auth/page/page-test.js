@@ -33,11 +33,12 @@ module('Integration | Component | auth | page', function (hooks) {
     assert.dom(GENERAL.pageError.error).hasText(CSP_ERROR);
   });
 
-  test('it renders splash logo and disables namespace input when oidc provider query param is present', async function (assert) {
+  test('it renders splash logo, disables namespace input and shows default form view when oidc provider query param is present', async function (assert) {
     this.oidcProviderQueryParam = 'myprovider';
     this.version.features = ['Namespaces'];
     await this.renderComponent();
     assert.dom(AUTH_FORM.logo).exists();
+    assert.dom(AUTH_FORM.selectByAttr('auth type')).exists('dropdown with all methods renders');
     assert.dom(GENERAL.inputByAttr('namespace')).isDisabled();
     assert
       .dom(AUTH_FORM.helpText)

@@ -84,6 +84,7 @@ interface Args {
   cluster: ClusterModel;
   directLinkData: { type: string; path?: string } | null; // if "path" key is present then mount data is visible
   loginSettings: { defaultType: string; backupTypes: string[] | null }; // enterprise only
+  oidcProviderQueryParam: 'string';
   onAuthSuccess: CallableFunction;
   visibleAuthMounts: UnauthMountsResponse;
 }
@@ -134,6 +135,10 @@ export default class AuthPage extends Component<Args> {
   // AUTH FORM STATE GETTERS
   get formViews() {
     const { directLinkData, loginSettings } = this.args;
+
+    if (this.args.oidcProviderQueryParam) {
+      return this.standardDropdownView;
+    }
 
     if (directLinkData) {
       return this.directLinkViews;
