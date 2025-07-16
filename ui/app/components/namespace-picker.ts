@@ -100,9 +100,17 @@ export default class NamespacePicker extends Component {
       }),
     ];
 
-    // Conditionally add the root namespace
-    if (this.auth?.authData?.userRootNamespace === '') {
+    // Conditionally add the user's root namespace if it is true root (an empty string)
+    // or "admin" which is the root namespace for HVD managed clusters.
+    const userRootNamespace = this.auth.authData?.userRootNamespace;
+    if (userRootNamespace === '') {
       options.unshift({ id: 'root', path: '', label: 'root' });
+    }
+    // Even if the cluster is not HVD managed, "admin" is not returned by sys/internal/ui/namespaces
+    // when the request is made in the "admin" context (i.e. "admin" is passed as the namespace header).
+    // Only add 'admin' if it does not already exist in options in case the API behavior changes.
+    if (userRootNamespace === 'admin' && !options?.find((o) => o.id === 'admin')) {
+      options.unshift({ id: 'admin', path: 'admin', label: 'admin' });
     }
 
     // If there are no namespaces returned by the internal endpoint, add the current namespace
