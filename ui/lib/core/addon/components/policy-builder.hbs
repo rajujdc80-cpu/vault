@@ -122,7 +122,7 @@
         {{#each-in this.identityOptions as |type options|}}
           <Hds::Form::SuperSelect::Multiple::Field
             @onChange={{fn this.handleAssignment type}}
-            @selected={{get this.selectedAssignments type}}
+            @selected={{this.selectedAssignmentsByType type}}
             @options={{options}}
             @searchEnabled={{true}}
             @searchField="name"
@@ -131,7 +131,7 @@
           >
             <F.Label>{{pluralize (capitalize type)}}</F.Label>
             <F.HelperText>Policy will apply to users who belong to the selected
-              {{pluralize (get (get this.selectedAssignments type) "length") type without-count=true}}.</F.HelperText>
+              {{pluralize (get (this.selectedAssignmentsByType type) "length") type without-count=true}}.</F.HelperText>
             <F.Options>
               {{#let F.options as |option|}}
                 {{option.name}}

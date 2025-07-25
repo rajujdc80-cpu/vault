@@ -25,6 +25,9 @@ const stanzaMaker = (path: string, policyStanzas: string[]) => {
 }`;
 };
 
+const IDENTITY_TYPES = ['group', 'entity'] as const;
+
+type IdentitySelectionKey = (typeof IDENTITY_TYPES)[number];
 interface IdentityResponse {
   data: {
     name: string;
@@ -32,16 +35,9 @@ interface IdentityResponse {
   };
 }
 interface Option {
-  type: string;
+  type: IdentitySelectionKey;
   name: string;
 }
-
-const IDENTITY_TYPES = {
-  group: 'Group',
-  entity: 'Entity',
-} as const;
-
-type IdentitySelectionKey = keyof typeof IDENTITY_TYPES;
 
 class PolicyStanza {
   @tracked path: string;
@@ -94,10 +90,7 @@ export default class PolicyBuilder extends Component {
   @tracked policyName = '';
   @tracked existingPolicy = ''; // if a policy is being edited
   @tracked policyStanzas: PolicyStanza[] = [];
-  @tracked selectedAssignments: Record<IdentitySelectionKey, Option[]> = {
-    group: [],
-    entity: [],
-  };
+  @tracked selectedAssignments: Option[] = [];
 
   constructor(owner: unknown, args: Record<string, never>) {
     super(owner, args);
@@ -105,12 +98,17 @@ export default class PolicyBuilder extends Component {
     this.fetchIdentities();
   }
 
+  selectedAssignmentsByType = (type: IdentitySelectionKey) =>
+    this.selectedAssignments.filter((o) => o.type === type);
+
   get applySubtext() {
-    const identities = this.filteredAssignments.map((type) => {
-      const key = type as IdentitySelectionKey;
-      const selectionLength = this.selectedAssignments[key].length;
-      return pluralize(selectionLength, type, { withoutCount: true });
-    });
+    const identities = [
+      ...new Set(
+        this.selectedAssignments.map((a: Option) => {
+          return pluralize(this.selectedAssignmentsByType(a.type).length, a.type, { withoutCount: true });
+        })
+      ),
+    ];
 
     if (identities.length > 1) {
       const lastItem = identities.pop();
@@ -120,12 +118,6 @@ export default class PolicyBuilder extends Component {
     } else {
       return '';
     }
-  }
-
-  get filteredAssignments() {
-    return Object.keys(this.selectedAssignments).filter(
-      (k) => this.selectedAssignments[k as IdentitySelectionKey].length
-    );
   }
 
   get policySnippet() {
@@ -233,10 +225,16 @@ ${command}`;
   }
 
   @action
-  handleAssignment(type: IdentitySelectionKey, selection: Option[]) {
-    this.selectedAssignments[type] = selection || [];
-    // trigger DOM update
-    this.selectedAssignments = Object.assign(this.selectedAssignments);
+  handleAssignment(selectedType: IdentitySelectionKey, selection: Option[]) {
+    let currentSelection: Option[] = [];
+    // preserve the current selections aside from the current input which is being updated
+    for (const type of IDENTITY_TYPES) {
+      // this input is being updated
+      if (selectedType === type) continue;
+      currentSelection = [...this.selectedAssignmentsByType(type)];
+    }
+    // update selected assignments
+    this.selectedAssignments = [...currentSelection, ...selection];
   }
 
   @action
@@ -294,8 +292,7 @@ ${command}`;
     const isSuccess = await this.createOrEditPolicy();
     if (isSuccess) {
       // only update entities and groups if the policy request succeeds
-      const identities = Object.values(this.selectedAssignments).flat();
-      for (const identity of identities) {
+      for (const identity of this.selectedAssignments) {
         await this.editIdentity(identity.type, identity.name);
       }
     }
@@ -340,10 +337,8 @@ ${command}`;
     this.showPreview = false;
     this.policyAction = 'create';
     this.policyName = '';
-    this.selectedAssignments = {
-      group: [],
-      entity: [],
-    };
+    this.selectedAssignments = [];
+    this.error = '';
   }
 
   // HELPERS
@@ -352,14 +347,16 @@ ${command}`;
   }
 
   buildAssignmentSnippet(commandTemplate: CallableFunction) {
-    let assignments: string[] = [];
-    if (this.filteredAssignments.length) {
-      for (const [key, value] of Object.entries(this.selectedAssignments)) {
-        if (!value?.length) continue;
-        const commands = value.map((g) => commandTemplate(g, key as IdentitySelectionKey));
-        assignments = [...commands, ...assignments];
+    let commands: string[] = [];
+    if (this.selectedAssignments.length) {
+      // organize assignments by type
+      for (const type of IDENTITY_TYPES) {
+        const assignments = this.selectedAssignmentsByType(type).map((assignment) =>
+          commandTemplate(assignment, type)
+        );
+        commands = [...commands, ...assignments];
       }
-      return assignments.length ? assignments.join('\n') : '';
+      return commands.length ? commands.join('\n') : '';
     }
     return '';
   }
